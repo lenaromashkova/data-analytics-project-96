@@ -36,10 +36,10 @@ WITH last_paid_click AS (
             'tg',
             'social'
         )
-            AND (
-                l.lead_id IS NULL
-                OR s.visit_date <= l.created_at
-            )
+        AND (
+            l.lead_id IS NULL
+            OR s.visit_date <= l.created_at
+        )
     ) AS paid_sessions
     WHERE rn = 1
 ),
@@ -47,18 +47,18 @@ WITH last_paid_click AS (
 stats AS (
     SELECT
         visit_date::date AS visit_date,
-        COUNT(visitor_id) AS visitors_count,
         utm_source,
         utm_medium,
         utm_campaign,
+        COUNT(visitor_id) AS visitors_count,
         COUNT(lead_id) AS leads_count,
         COUNT(*) FILTER (
             WHERE closing_reason = 'Успешно реализовано'
-                OR status_id = 142
+            OR status_id = 142
         ) AS purchases_count,
         SUM(amount) FILTER (
             WHERE closing_reason = 'Успешно реализовано'
-                OR status_id = 142
+            OR status_id = 142
         ) AS revenue
     FROM last_paid_click
     GROUP BY
@@ -94,16 +94,17 @@ SELECT
     s.utm_source,
     s.utm_medium,
     s.utm_campaign,
-    COALESCE(SUM(a.daily_spent), 0) AS total_cost,
     s.leads_count,
     s.purchases_count,
-    s.revenue
+    s.revenue,
+    COALESCE(SUM(a.daily_spent), 0) AS total_cost
 FROM stats AS s
 LEFT JOIN ads_costs AS a
-    ON s.visit_date = a.visit_date
-    AND s.utm_source = a.utm_source
-    AND s.utm_medium = a.utm_medium
-    AND s.utm_campaign = a.utm_campaign
+    ON
+        s.visit_date = a.visit_date
+        AND s.utm_source = a.utm_source
+        AND s.utm_medium = a.utm_medium
+        AND s.utm_campaign = a.utm_campaign
 GROUP BY
     s.visit_date,
     s.visitors_count,
