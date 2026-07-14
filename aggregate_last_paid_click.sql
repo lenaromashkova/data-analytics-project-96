@@ -1,33 +1,25 @@
-WITH last_paid_click AS (
+WITH paid_sessions AS (
     SELECT
-        visitor_id,
-        visit_date,
-        source AS utm_source,
-        medium AS utm_medium,
-        campaign AS utm_campaign,
-        lead_id,
-        amount,
-        closing_reason,
-        status_id
-    FROM (
-        SELECT
-            s.visitor_id,
-            s.visit_date,
-            s.source,
-            s.medium,
-            s.campaign,
-            l.lead_id,
-            l.amount,
-            l.closing_reason,
-            l.status_id,
-            ROW_NUMBER() OVER (
-                PARTITION BY s.visitor_id
-                ORDER BY s.visit_date DESC
-            ) AS rn
-        FROM sessions AS s
-        LEFT JOIN leads AS l
-            ON s.visitor_id = l.visitor_id
-        WHERE s.medium IN (
+        s.visitor_id,
+        s.visit_date,
+        s.source AS utm_source,
+        s.medium AS utm_medium,
+        s.campaign AS utm_campaign,
+        l.lead_id,
+        l.amount,
+        l.closing_reason,
+        l.status_id,
+        ROW_NUMBER() OVER (
+            PARTITION BY
+                s.visitor_id,
+                l.lead_id
+            ORDER BY s.visit_date DESC
+        ) AS rn
+    FROM sessions AS s
+    LEFT JOIN leads AS l
+        ON s.visitor_id = l.visitor_id
+    WHERE
+        s.medium IN (
             'cpc',
             'cpm',
             'cpa',
@@ -40,7 +32,20 @@ WITH last_paid_click AS (
             l.lead_id IS NULL
             OR s.visit_date <= l.created_at
         )
-    ) AS paid_sessions
+),
+
+last_paid_click AS (
+    SELECT
+        visitor_id,
+        visit_date,
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        lead_id,
+        amount,
+        closing_reason,
+        status_id
+    FROM paid_sessions
     WHERE rn = 1
 ),
 
@@ -50,15 +55,13 @@ stats AS (
         utm_source,
         utm_medium,
         utm_campaign,
-        COUNT(visitor_id) AS visitors_count,
+        COUNT(DISTINCT visitor_id) AS visitors_count,
         COUNT(lead_id) AS leads_count,
         COUNT(*) FILTER (
-            WHERE closing_reason = 'Успешно реализовано'
-            OR status_id = 142
+            WHERE status_id = 142
         ) AS purchases_count,
         SUM(amount) FILTER (
-            WHERE closing_reason = 'Успешно реализовано'
-            OR status_id = 142
+            WHERE status_id = 142
         ) AS revenue
     FROM last_paid_click
     GROUP BY
@@ -97,7 +100,7 @@ SELECT
     s.leads_count,
     s.purchases_count,
     s.revenue,
-    COALESCE(SUM(a.daily_spent), 0) AS total_cost
+    SUM(a.daily_spent) AS total_cost
 FROM stats AS s
 LEFT JOIN ads_costs AS a
     ON
