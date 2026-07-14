@@ -1,52 +1,43 @@
 WITH paid_sessions AS (
     SELECT
-        s.visitor_id,
-        s.visit_date,
-        s.source AS utm_source,
-        s.medium AS utm_medium,
-        s.campaign AS utm_campaign,
-        l.lead_id,
-        l.amount,
-        l.closing_reason,
-        l.status_id,
+        visitor_id,
+        visit_date,
+        source AS utm_source,
+        medium AS utm_medium,
+        campaign AS utm_campaign,
         ROW_NUMBER() OVER (
-            PARTITION BY
-                s.visitor_id,
-                l.lead_id
-            ORDER BY s.visit_date DESC
+            PARTITION BY visitor_id
+            ORDER BY visit_date DESC
         ) AS rn
-    FROM sessions AS s
-    LEFT JOIN leads AS l
-        ON s.visitor_id = l.visitor_id
-    WHERE
-        s.medium IN (
-            'cpc',
-            'cpm',
-            'cpa',
-            'youtube',
-            'cpp',
-            'tg',
-            'social'
-        )
-        AND (
-            l.lead_id IS NULL
-            OR s.visit_date <= l.created_at
-        )
+    FROM sessions
+    WHERE medium IN (
+        'cpc',
+        'cpm',
+        'cpa',
+        'youtube',
+        'cpp',
+        'tg',
+        'social'
+    )
 ),
 
 last_paid_click AS (
     SELECT
-        visitor_id,
-        visit_date,
-        utm_source,
-        utm_medium,
-        utm_campaign,
-        lead_id,
-        amount,
-        closing_reason,
-        status_id
-    FROM paid_sessions
-    WHERE rn = 1
+        ps.visitor_id,
+        ps.visit_date,
+        ps.utm_source,
+        ps.utm_medium,
+        ps.utm_campaign,
+        l.lead_id,
+        l.amount,
+        l.closing_reason,
+        l.status_id
+    FROM paid_sessions AS ps
+    LEFT JOIN leads AS l
+        ON
+            ps.visitor_id = l.visitor_id
+            AND ps.visit_date <= l.created_at
+    WHERE ps.rn = 1
 ),
 
 stats AS (
@@ -56,8 +47,8 @@ stats AS (
         utm_medium,
         utm_campaign,
         COUNT(DISTINCT visitor_id) AS visitors_count,
-        COUNT(lead_id) AS leads_count,
-        COUNT(*) FILTER (
+        COUNT(DISTINCT lead_id) AS leads_count,
+        COUNT(DISTINCT lead_id) FILTER (
             WHERE status_id = 142
         ) AS purchases_count,
         SUM(amount) FILTER (
